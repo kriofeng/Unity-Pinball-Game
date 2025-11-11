@@ -33,8 +33,9 @@ public class ParticleTrigger : MonoBehaviour
         var renderer = particleEffect.GetComponent<ParticleSystemRenderer>();
         if (renderer != null)
         {
-            // 使用Billboard渲染模式
+            // 使用Billboard渲染模式，让粒子始终对着相机
             renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.alignment = ParticleSystemRenderSpace.View; // 确保粒子对着相机视图
             
             // 创建简单的粒子材质，确保打包时可用
             Shader particleShader = Shader.Find("Legacy Shaders/Particles/Alpha Blended");
@@ -51,6 +52,11 @@ public class ParticleTrigger : MonoBehaviour
             {
                 Material particleMaterial = new Material(particleShader);
                 particleMaterial.color = Color.yellow;
+                // 如果是粒子着色器，设置TintColor
+                if (particleShader.name.Contains("Particles"))
+                {
+                    particleMaterial.SetColor("_TintColor", Color.yellow);
+                }
                 renderer.material = particleMaterial;
             }
             else

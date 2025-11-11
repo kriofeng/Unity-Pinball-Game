@@ -242,8 +242,19 @@ public class PinballGameSetup : MonoBehaviour
             GameObject target = GameObject.CreatePrimitive(PrimitiveType.Cube);
             target.name = $"Target_{i}";
             SetTagSafely(target, "Target");
-            target.transform.position = new Vector3(-2 + i * 2, 0.5f, 2); // 降低高度，确保在地面上
+            
+            // 基础位置
+            Vector3 basePosition = new Vector3(-2 + i * 2, 0.5f, 2);
+            // 添加随机位置偏差（±0.3）
+            float positionOffsetX = Random.Range(-0.3f, 0.3f);
+            float positionOffsetZ = Random.Range(-0.3f, 0.3f);
+            target.transform.position = new Vector3(basePosition.x + positionOffsetX, basePosition.y, basePosition.z + positionOffsetZ);
+            
             target.transform.localScale = new Vector3(1, 1, 0.5f);
+            
+            // 添加随机Y轴旋转角度（-45到45度）
+            float randomRotationY = Random.Range(-45f, 45f);
+            target.transform.rotation = Quaternion.Euler(0, randomRotationY, 0);
             
             Renderer renderer = target.GetComponent<Renderer>();
             if (targetMaterial == null)
