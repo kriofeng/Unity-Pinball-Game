@@ -24,6 +24,15 @@ public class ScoreManager : MonoBehaviour
     {
         return currentScore;
     }
+    
+    public void ResetScore()
+    {
+        currentScore = 0;
+        if (uiManager != null)
+        {
+            uiManager.UpdateScore(currentScore);
+        }
+    }
 }
 
 

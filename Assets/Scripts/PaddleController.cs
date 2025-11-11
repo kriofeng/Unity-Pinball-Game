@@ -21,6 +21,8 @@ public class PaddleController : MonoBehaviour
     private Vector3 pivotPoint; // 旋转轴点（左板子在左边，右板子在右边）
     private Vector3 initialPosition; // 初始位置
     private float paddleHalfLength; // 板子长度的一半
+    private float lastCollisionTime = 0f; // 上次碰撞时间，用于防止重复处理
+    private const float COLLISION_COOLDOWN = 0.1f; // 碰撞冷却时间
     
     void Start()
     {
@@ -58,7 +60,7 @@ public class PaddleController : MonoBehaviour
     
     void Update()
     {
-        // 检测输入
+        // 检测输入（在Update中检测输入，响应更快）
         bool shouldActivate = false;
         
         if (isLeftPaddle)
@@ -125,7 +127,11 @@ public class PaddleController : MonoBehaviour
             // 计算旋转速度（度/秒）
             rotationVelocity = (currentRotationY - previousRotationY) / Time.deltaTime;
         }
-        
+    }
+    
+    void FixedUpdate()
+    {
+        // 在FixedUpdate中应用物理移动，确保碰撞检测正确
         // 应用旋转（绕Y轴旋转，绕边缘点旋转）
         float rotationAngle = initialRotationY + currentRotationY;
         Quaternion rotation = Quaternion.Euler(transform.rotation.eulerAngles.x, rotationAngle, transform.rotation.eulerAngles.z);
@@ -133,8 +139,20 @@ public class PaddleController : MonoBehaviour
         // 计算旋转后的位置（绕pivotPoint旋转）
         Vector3 offsetFromPivot = initialPosition - pivotPoint;
         Vector3 rotatedOffset = rotation * offsetFromPivot;
-        transform.position = pivotPoint + rotatedOffset;
-        transform.rotation = rotation;
+        Vector3 targetPosition = pivotPoint + rotatedOffset;
+        
+        // 使用MovePosition和MoveRotation确保物理引擎正确检测碰撞
+        if (rb != null)
+        {
+            rb.MovePosition(targetPosition);
+            rb.MoveRotation(rotation);
+        }
+        else
+        {
+            // 如果没有刚体，直接设置transform（不应该发生）
+            transform.position = targetPosition;
+            transform.rotation = rotation;
+        }
     }
     
     void OnCollisionEnter(Collision collision)
@@ -142,6 +160,7 @@ public class PaddleController : MonoBehaviour
         // 当球碰撞挡板时，使用物理反射
         if (IsBall(collision.gameObject))
         {
+            lastCollisionTime = Time.time;
             HandleBallCollision(collision);
         }
     }
@@ -152,6 +171,58 @@ public class PaddleController : MonoBehaviour
         if (IsBall(collision.gameObject))
         {
             ballOnPaddle = collision.gameObject;
+            
+            // 防止球卡在挡板上：只在球速度很低或卡住时才推离
+            Rigidbody ballRb = collision.gameObject.GetComponent<Rigidbody>();
+            if (ballRb != null && collision.contacts.Length > 0)
+            {
+                // 检查距离上次碰撞处理的时间，避免过于频繁的处理
+                if (Time.time - lastCollisionTime < COLLISION_COOLDOWN)
+                {
+                    return; // 冷却时间内不处理，让物理引擎自然处理
+                }
+                
+                ContactPoint contact = collision.contacts[0];
+                Vector3 normal = contact.normal;
+                normal = new Vector3(normal.x, 0, normal.z).normalized;
+                
+                if (normal.magnitude > 0.1f)
+                {
+                    Vector3 velocity = ballRb.velocity;
+                    Vector3 flatVelocity = new Vector3(velocity.x, 0, velocity.z);
+                    float speed = flatVelocity.magnitude;
+                    
+                    // 只在球速度很低（可能卡住）时才强制推离
+                    if (speed < 2f)
+                    {
+                        // 计算推离方向：垂直于挡板表面，远离挡板中心
+                        Vector3 ballPosition = ballRb.transform.position;
+                        Vector3 paddlePosition = transform.position;
+                        Vector3 ballToPaddleCenter = new Vector3(
+                            paddlePosition.x - ballPosition.x,
+                            0,
+                            paddlePosition.z - ballPosition.z
+                        ).normalized;
+                        
+                        // 推离方向：法线方向 + 远离挡板中心的方向
+                        Vector3 pushDirection = (normal + ballToPaddleCenter * 0.5f).normalized;
+                        
+                        // 将球推离挡板表面（更大的距离）
+                        Vector3 pushAway = pushDirection * 0.3f;
+                        ballRb.transform.position = new Vector3(
+                            ballRb.transform.position.x + pushAway.x,
+                            ballRb.transform.position.y,
+                            ballRb.transform.position.z + pushAway.z
+                        );
+                        
+                        // 给球一个足够的速度离开挡板（确保方向正确）
+                        Vector3 escapeVelocity = pushDirection * 8f;
+                        ballRb.velocity = new Vector3(escapeVelocity.x, 0, escapeVelocity.z);
+                        
+                        lastCollisionTime = Time.time;
+                    }
+                }
+            }
         }
     }
     
@@ -173,6 +244,7 @@ public class PaddleController : MonoBehaviour
         if (collision.contacts.Length == 0) return;
         ContactPoint contact = collision.contacts[0];
         Vector3 normal = contact.normal;
+        Vector3 contactPoint = contact.point;
         
         // 确保法线在XZ平面上（俯视角）
         normal = new Vector3(normal.x, 0, normal.z).normalized;
@@ -183,15 +255,18 @@ public class PaddleController : MonoBehaviour
         Vector3 flatIncoming = new Vector3(incomingVelocity.x, 0, incomingVelocity.z);
         if (flatIncoming.magnitude < 0.1f) return;
         
+        // 使用碰撞点的法线作为挡板表面的法线
+        Vector3 surfaceNormal = normal;
+        
         // 计算物理反射方向（在XZ平面上）
-        Vector3 reflectDirection = Vector3.Reflect(-flatIncoming.normalized, normal);
+        Vector3 reflectDirection = Vector3.Reflect(-flatIncoming.normalized, surfaceNormal);
         reflectDirection = new Vector3(reflectDirection.x, 0, reflectDirection.z).normalized;
         
         // 获取板子的旋转速度（角速度，度/秒）
         float paddleAngularVelocity = rotationVelocity;
         
-        // 计算出射速度（基础速度 = 入射速度）
-        float outgoingSpeed = flatIncoming.magnitude;
+        // 计算出射速度（基础速度 = 入射速度，但至少保持最小速度）
+        float outgoingSpeed = Mathf.Max(flatIncoming.magnitude, 6f); // 增加最小速度
         
         // 如果板子有旋转速度（向上旋转），给球额外的速度
         if (Mathf.Abs(paddleAngularVelocity) > 0.1f)
@@ -200,13 +275,13 @@ public class PaddleController : MonoBehaviour
             // 板子边缘的线速度 = 角速度（度/秒转弧度/秒） * 半径（板子长度的一半）
             float paddleEdgeSpeed = (Mathf.Abs(paddleAngularVelocity) * Mathf.Deg2Rad) * paddleHalfLength;
             
-            // 计算板子边缘的速度方向（板子向上旋转时，边缘向前移动）
-            // 板子表面法线是normal，板子边缘速度方向是垂直于法线，沿着板子表面向前
-            Vector3 paddleForward = new Vector3(-normal.z, 0, normal.x).normalized;
+            // 计算板子边缘的速度方向
+            // 板子向上旋转时，边缘向前移动（在XZ平面上）
+            Vector3 paddleEdgeDirection = new Vector3(-surfaceNormal.z, 0, surfaceNormal.x).normalized;
             if (isLeftPaddle)
             {
                 // 左板子向上旋转时，边缘向右前方移动
-                paddleForward = new Vector3(normal.z, 0, -normal.x).normalized;
+                paddleEdgeDirection = new Vector3(surfaceNormal.z, 0, -surfaceNormal.x).normalized;
             }
             
             // 如果板子向上旋转（paddleAngularVelocity > 0 对于右板子，< 0 对于左板子），给球加速
@@ -215,16 +290,36 @@ public class PaddleController : MonoBehaviour
             if (isRotatingUp)
             {
                 // 将板子的速度添加到反射方向
-                Vector3 paddleVelocity = paddleForward * paddleEdgeSpeed;
-                reflectDirection = (reflectDirection * flatIncoming.magnitude + paddleVelocity).normalized;
+                Vector3 paddleVelocity = paddleEdgeDirection * paddleEdgeSpeed;
+                Vector3 combinedVelocity = reflectDirection * outgoingSpeed + paddleVelocity;
+                reflectDirection = combinedVelocity.normalized;
                 
                 // 增加出射速度（板子速度的一部分传递给球）
-                outgoingSpeed += paddleEdgeSpeed * 0.5f;
+                outgoingSpeed = Mathf.Max(combinedVelocity.magnitude, outgoingSpeed);
             }
         }
         
+        // 确保反射方向有效
+        if (reflectDirection.magnitude < 0.1f)
+        {
+            // 如果反射方向无效，使用表面法线的垂直方向
+            reflectDirection = new Vector3(-surfaceNormal.z, 0, surfaceNormal.x).normalized;
+        }
+        
         // 应用反射速度（只在XZ平面）
-        ballRb.velocity = new Vector3(reflectDirection.x * outgoingSpeed, 0, reflectDirection.z * outgoingSpeed);
+        Vector3 finalVelocity = new Vector3(reflectDirection.x * outgoingSpeed, 0, reflectDirection.z * outgoingSpeed);
+        ballRb.velocity = finalVelocity;
+        
+        // 将球推离挡板表面，使用更大的距离确保球离开
+        Vector3 pushAway = surfaceNormal * 0.25f; // 增加推离距离
+        ballRb.transform.position = new Vector3(
+            ballRb.transform.position.x + pushAway.x,
+            ballRb.transform.position.y,
+            ballRb.transform.position.z + pushAway.z
+        );
+        
+        // 更新碰撞时间
+        lastCollisionTime = Time.time;
     }
     
     // 检查是否是球（使用标签或名称）

@@ -7,7 +7,7 @@ public class BallController : MonoBehaviour
     public float maxSpeed = 15f; // 最大速度（防止球飞出屏幕）
     
     [Header("碰撞设置")]
-    public float deflectionAngle = 50f; // 垂直碰撞时的偏斜角度（度，增加以避免死循环）
+    public float deflectionAngle = 10f; // 垂直碰撞时的偏斜角度（度，增加以避免死循环）
     
     [Header("拖尾设置")]
     public bool alwaysShowTrail = false; // 测试选项：始终显示拖尾
@@ -32,7 +32,6 @@ public class BallController : MonoBehaviour
     void SetupTrailRenderer()
     {
         if (trailRenderer == null) return;
-        
         // 设置拖尾参数
         trailRenderer.time = 1f; // 拖尾持续时间
         trailRenderer.startWidth = 0.3f; // 起始宽度
@@ -83,52 +82,76 @@ public class BallController : MonoBehaviour
     {
         if (rb == null) return;
         
-        // 限制球的高度（保持在平面上）- 先限制位置，避免碰撞产生Y轴速度
-        Vector3 position = transform.position;
-        position.y = 0.5f; // 固定高度
-        transform.position = position;
+        // 检查球是否在游戏区域内（Z > -4.5表示还在场地内，考虑开口位置）
+        float playAreaMinZ = -4.5f;
+        bool isInPlayArea = transform.position.z > playAreaMinZ;
         
-        // 保存当前速度，用于碰撞检测（在限制Y轴之前）
-        lastVelocity = rb.velocity;
-        
-        // 限制球只在XZ平面上移动（Y轴速度为0）- 强制限制，确保不会飞出
-        Vector3 velocity = rb.velocity;
-        velocity.y = 0f; // 强制Y轴速度为0
-        rb.velocity = velocity;
-        
-        // 同时限制角速度的Y轴分量（防止球旋转产生Y轴速度）
-        Vector3 angularVelocity = rb.angularVelocity;
-        angularVelocity.x = 0f;
-        angularVelocity.z = 0f;
-        rb.angularVelocity = angularVelocity;
-        
-        // 获取当前速度（只在XZ平面）
-        float currentSpeed = new Vector3(velocity.x, 0, velocity.z).magnitude;
-        
-        // 如果速度低于最小值，增加速度
-        if (currentSpeed < minSpeed && currentSpeed > 0.1f)
+        if (isInPlayArea)
         {
-            // 保持方向，但增加速度到最小值（只在XZ平面）
-            Vector3 direction = new Vector3(velocity.x, 0, velocity.z).normalized;
-            rb.velocity = new Vector3(direction.x * minSpeed, 0, direction.z * minSpeed);
+            // 只在游戏区域内限制球的高度和速度
+            // 限制球的高度（保持在平面上）- 先限制位置，避免碰撞产生Y轴速度
+            Vector3 position = transform.position;
+            position.y = 0.5f; // 固定高度
+            transform.position = position;
+            
+            // 保存当前速度，用于碰撞检测（在限制Y轴之前）
+            lastVelocity = rb.velocity;
+            
+            // 限制球只在XZ平面上移动（Y轴速度为0）- 强制限制，确保不会飞出
+            Vector3 velocity = rb.velocity;
+            velocity.y = 0f; // 强制Y轴速度为0
+            rb.velocity = velocity;
+            
+            // 同时限制角速度的Y轴分量（防止球旋转产生Y轴速度）
+            Vector3 angularVelocity = rb.angularVelocity;
+            angularVelocity.x = 0f;
+            angularVelocity.z = 0f;
+            rb.angularVelocity = angularVelocity;
+            
+            // 获取当前速度（只在XZ平面）
+            float currentSpeed = new Vector3(velocity.x, 0, velocity.z).magnitude;
+            
+            // 如果速度低于最小值，增加速度
+            if (currentSpeed < minSpeed && currentSpeed > 0.1f)
+            {
+                // 保持方向，但增加速度到最小值（只在XZ平面）
+                Vector3 direction = new Vector3(velocity.x, 0, velocity.z).normalized;
+                rb.velocity = new Vector3(direction.x * minSpeed, 0, direction.z * minSpeed);
+            }
+            
+            // 如果速度超过最大值，限制速度
+            if (currentSpeed > maxSpeed)
+            {
+                Vector3 direction = new Vector3(velocity.x, 0, velocity.z).normalized;
+                rb.velocity = new Vector3(direction.x * maxSpeed, 0, direction.z * maxSpeed);
+            }
+            
+            // 如果球几乎停止（可能是卡住了），给它一个小的随机速度
+            if (currentSpeed < 0.1f)
+            {
+                Vector3 randomDirection = new Vector3(
+                    Random.Range(-1f, 1f),
+                    0,
+                    Random.Range(0.5f, 1f)
+                ).normalized;
+                rb.velocity = new Vector3(randomDirection.x * minSpeed, 0, randomDirection.z * minSpeed);
+            }
         }
-        
-        // 如果速度超过最大值，限制速度
-        if (currentSpeed > maxSpeed)
+        else
         {
-            Vector3 direction = new Vector3(velocity.x, 0, velocity.z).normalized;
-            rb.velocity = new Vector3(direction.x * maxSpeed, 0, direction.z * maxSpeed);
-        }
-        
-        // 如果球几乎停止（可能是卡住了），给它一个小的随机速度
-        if (currentSpeed < 0.1f)
-        {
-            Vector3 randomDirection = new Vector3(
-                Random.Range(-1f, 1f),
-                0,
-                Random.Range(0.5f, 1f)
-            ).normalized;
-            rb.velocity = new Vector3(randomDirection.x * minSpeed, 0, randomDirection.z * minSpeed);
+            // 球已经掉出场地，允许它继续移动（用于触发检测）
+            // 保持Y轴位置固定，但允许Z轴继续移动以触发检测器
+            Vector3 position = transform.position;
+            position.y = 0.5f; // 保持高度固定
+            transform.position = position;
+            
+            // 保存速度用于碰撞检测
+            lastVelocity = rb.velocity;
+            
+            // 限制Y轴速度，但允许X和Z轴继续移动
+            Vector3 velocity = rb.velocity;
+            velocity.y = 0f;
+            rb.velocity = velocity;
         }
     }
     
