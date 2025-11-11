@@ -370,6 +370,38 @@ public class PinballGameSetup : MonoBehaviour
         iceZoneScript.friction = 0.05f; // 非常低的摩擦（冰面效果）
         iceZoneScript.bounciness = 0.2f;
         iceZoneScript.zoneColor = new Color(0.7f, 0.9f, 1f); // 淡蓝色
+        
+        // 创建重力区域（左侧小区域）
+        GameObject gravityZone = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        gravityZone.name = "GravityZone";
+        gravityZone.transform.position = new Vector3(-3.5f, 0.5f, 1.5f); // 左侧位置
+        gravityZone.transform.localScale = new Vector3(1.5f, 1f, 1.5f); // 小区域
+        gravityZone.transform.rotation = Quaternion.Euler(0, 0, 0);
+        
+        // 设置重力区域材质（橙色，半透明）
+        Renderer gravityRenderer = gravityZone.GetComponent<Renderer>();
+        Shader gravityShader = Shader.Find("Legacy Shaders/Diffuse");
+        if (gravityShader == null)
+        {
+            gravityShader = Shader.Find("Unlit/Color");
+        }
+        Material gravityMaterial = new Material(gravityShader);
+        gravityMaterial.color = new Color(1f, 0.5f, 0f, 0.3f); // 橙色，半透明
+        gravityRenderer.material = gravityMaterial;
+        
+        // 添加重力区域脚本
+        GravityZone gravityZoneScript = gravityZone.AddComponent<GravityZone>();
+        gravityZoneScript.gravityStrength = 8f; // 引力强度
+        gravityZoneScript.maxInfluenceDistance = 2.5f; // 最大影响距离
+        gravityZoneScript.zoneColor = new Color(1f, 0.5f, 0f, 0.3f); // 橙色，半透明
+        
+        // 设置为触发器
+        gravityZone.GetComponent<Collider>().isTrigger = true;
+        
+        // 添加刚体（静态，用于触发器）
+        Rigidbody gravityRb = gravityZone.AddComponent<Rigidbody>();
+        gravityRb.isKinematic = true;
+        gravityRb.useGravity = false;
     }
     
     void CreateWalls()

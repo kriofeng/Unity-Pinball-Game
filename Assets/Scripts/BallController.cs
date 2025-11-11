@@ -77,6 +77,52 @@ public class BallController : MonoBehaviour
         }
     }
     
+    // 应用重力区域的影响
+    void ApplyGravityZones()
+    {
+        if (rb == null) return;
+        
+        // 查找所有重力区域
+        GravityZone[] gravityZones = FindObjectsOfType<GravityZone>();
+        
+        Vector3 totalGravityForce = Vector3.zero;
+        
+        foreach (GravityZone zone in gravityZones)
+        {
+            if (zone == null) continue;
+            
+            Vector3 ballPosition = transform.position;
+            
+            // 检查球是否在重力区域的影响范围内
+            if (zone.IsInInfluenceRange(ballPosition))
+            {
+                // 获取引力方向和强度
+                Vector3 gravityDirection = zone.GetGravityDirection(ballPosition);
+                float gravityForce = zone.GetGravityForceAtDistance(ballPosition);
+                
+                // 计算引力向量（在XZ平面上）
+                Vector3 gravityVector = new Vector3(
+                    gravityDirection.x * gravityForce * Time.fixedDeltaTime,
+                    0,
+                    gravityDirection.z * gravityForce * Time.fixedDeltaTime
+                );
+                
+                totalGravityForce += gravityVector;
+            }
+        }
+        
+        // 应用总引力到球的速度（在XZ平面上）
+        if (totalGravityForce.magnitude > 0.01f)
+        {
+            Vector3 currentVelocity = rb.velocity;
+            Vector3 flatVelocity = new Vector3(currentVelocity.x, 0, currentVelocity.z);
+            Vector3 newVelocity = flatVelocity + totalGravityForce;
+            
+            // 确保新速度在XZ平面上
+            rb.velocity = new Vector3(newVelocity.x, 0, newVelocity.z);
+        }
+    }
+    
     
     void FixedUpdate()
     {
@@ -108,21 +154,27 @@ public class BallController : MonoBehaviour
             angularVelocity.z = 0f;
             rb.angularVelocity = angularVelocity;
             
-            // 获取当前速度（只在XZ平面）
-            float currentSpeed = new Vector3(velocity.x, 0, velocity.z).magnitude;
+            // 处理重力区域的影响
+            ApplyGravityZones();
+            
+            // 重新获取当前速度（应用重力后，只在XZ平面）
+            Vector3 currentVelocity = rb.velocity;
+            currentVelocity.y = 0f; // 确保Y轴速度为0
+            rb.velocity = currentVelocity;
+            float currentSpeed = new Vector3(currentVelocity.x, 0, currentVelocity.z).magnitude;
             
             // 如果速度低于最小值，增加速度
             if (currentSpeed < minSpeed && currentSpeed > 0.1f)
             {
                 // 保持方向，但增加速度到最小值（只在XZ平面）
-                Vector3 direction = new Vector3(velocity.x, 0, velocity.z).normalized;
+                Vector3 direction = new Vector3(currentVelocity.x, 0, currentVelocity.z).normalized;
                 rb.velocity = new Vector3(direction.x * minSpeed, 0, direction.z * minSpeed);
             }
             
             // 如果速度超过最大值，限制速度
             if (currentSpeed > maxSpeed)
             {
-                Vector3 direction = new Vector3(velocity.x, 0, velocity.z).normalized;
+                Vector3 direction = new Vector3(currentVelocity.x, 0, currentVelocity.z).normalized;
                 rb.velocity = new Vector3(direction.x * maxSpeed, 0, direction.z * maxSpeed);
             }
             
