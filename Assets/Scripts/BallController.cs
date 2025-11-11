@@ -17,6 +17,7 @@ public class BallController : MonoBehaviour
     private int consecutive90DegreeCollisions = 0; // 连续90度碰撞计数
     private TrailRenderer trailRenderer; // 拖尾组件
     private bool isOnIce = false; // 是否在冰面上
+    private CameraShake cameraShake; // 相机震动组件
     
     void Start()
     {
@@ -27,6 +28,17 @@ public class BallController : MonoBehaviour
         SetupTrailRenderer();
         // 默认禁用，只有在冰面上才启用（或测试模式下始终启用）
         trailRenderer.enabled = alwaysShowTrail;
+        
+        // 查找相机震动组件
+        Camera mainCamera = Camera.main;
+        if (mainCamera != null)
+        {
+            cameraShake = mainCamera.GetComponent<CameraShake>();
+            if (cameraShake == null)
+            {
+                cameraShake = mainCamera.gameObject.AddComponent<CameraShake>();
+            }
+        }
     }
     
     void SetupTrailRenderer()
@@ -211,6 +223,17 @@ public class BallController : MonoBehaviour
     {
         if (rb == null) return;
         
+        // 只有碰到绿色目标时才触发相机震动
+        if (IsTarget(collision.gameObject) && cameraShake != null)
+        {
+            float impactSpeed = new Vector3(lastVelocity.x, 0, lastVelocity.z).magnitude;
+            if (impactSpeed < 0.1f)
+            {
+                impactSpeed = new Vector3(rb.velocity.x, 0, rb.velocity.z).magnitude;
+            }
+            cameraShake.ShakeByImpact(impactSpeed);
+        }
+        
         // 只在垂直入射时才进行偏斜处理，其他情况让Unity物理引擎自然处理
         if (collision.contacts.Length > 0)
         {
@@ -371,6 +394,19 @@ public class BallController : MonoBehaviour
             Vector3 currentVel = rb.velocity;
             currentVel.y = 0f;
             rb.velocity = currentVel;
+        }
+    }
+    
+    // 检查是否是目标（绿色板子）
+    bool IsTarget(GameObject obj)
+    {
+        try
+        {
+            return obj.CompareTag("Target");
+        }
+        catch
+        {
+            return obj.name.StartsWith("Target");
         }
     }
 }

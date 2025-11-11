@@ -78,6 +78,12 @@ public class PinballGameSetup : MonoBehaviour
         
         // 设置背景颜色
         mainCamera.backgroundColor = new Color(0.2f, 0.2f, 0.3f);
+        
+        // 添加相机震动组件
+        if (mainCamera.GetComponent<CameraShake>() == null)
+        {
+            mainCamera.gameObject.AddComponent<CameraShake>();
+        }
     }
     
     void CreateUIManager()
