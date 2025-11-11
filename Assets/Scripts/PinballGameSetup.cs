@@ -110,10 +110,24 @@ public class PinballGameSetup : MonoBehaviour
             {
                 shader = Shader.Find("Unlit/Color");
             }
-            normalMaterial = new Material(shader);
-            normalMaterial.color = Color.gray;
+            if (shader == null)
+            {
+                shader = Shader.Find("Sprites/Default");
+            }
+            if (shader != null)
+            {
+                normalMaterial = new Material(shader);
+                normalMaterial.color = Color.gray;
+            }
+            else
+            {
+                Debug.LogError("无法找到可用的着色器来创建弹球台材质！");
+            }
         }
-        renderer.material = normalMaterial;
+        if (normalMaterial != null)
+        {
+            renderer.material = normalMaterial;
+        }
         
         // 添加物理材质（低摩擦，让球更容易移动）
         PhysicMaterial normalPhysic = new PhysicMaterial("NormalMaterial");
@@ -152,10 +166,24 @@ public class PinballGameSetup : MonoBehaviour
             {
                 shader = Shader.Find("Unlit/Color");
             }
-            ballMaterial = new Material(shader);
-            ballMaterial.color = Color.red;
+            if (shader == null)
+            {
+                shader = Shader.Find("Sprites/Default");
+            }
+            if (shader != null)
+            {
+                ballMaterial = new Material(shader);
+                ballMaterial.color = Color.red;
+            }
+            else
+            {
+                Debug.LogError("无法找到可用的着色器来创建球材质！");
+            }
         }
-        renderer.material = ballMaterial;
+        if (ballMaterial != null)
+        {
+            renderer.material = ballMaterial;
+        }
         
         // 添加刚体
         Rigidbody rb = ball.AddComponent<Rigidbody>();
@@ -205,10 +233,24 @@ public class PinballGameSetup : MonoBehaviour
             {
                 shader = Shader.Find("Unlit/Color");
             }
-            paddleMaterial = new Material(shader);
-            paddleMaterial.color = Color.blue;
+            if (shader == null)
+            {
+                shader = Shader.Find("Sprites/Default");
+            }
+            if (shader != null)
+            {
+                paddleMaterial = new Material(shader);
+                paddleMaterial.color = Color.blue;
+            }
+            else
+            {
+                Debug.LogError("无法找到可用的着色器来创建挡板材质！");
+            }
         }
-        leftRenderer.material = paddleMaterial;
+        if (paddleMaterial != null)
+        {
+            leftRenderer.material = paddleMaterial;
+        }
         
         // 确保碰撞器正确设置
         Collider leftCollider = leftPaddle.GetComponent<Collider>();
@@ -243,7 +285,10 @@ public class PinballGameSetup : MonoBehaviour
         rightPaddle.transform.rotation = Quaternion.Euler(0, 0, 0); // 水平放置
         
         Renderer rightRenderer = rightPaddle.GetComponent<Renderer>();
-        rightRenderer.material = paddleMaterial;
+        if (paddleMaterial != null)
+        {
+            rightRenderer.material = paddleMaterial;
+        }
         
         // 确保碰撞器正确设置
         Collider rightCollider = rightPaddle.GetComponent<Collider>();
@@ -319,10 +364,24 @@ public class PinballGameSetup : MonoBehaviour
                 {
                     shader = Shader.Find("Unlit/Color");
                 }
-                targetMaterial = new Material(shader);
-                targetMaterial.color = Color.green;
+                if (shader == null)
+                {
+                    shader = Shader.Find("Sprites/Default");
+                }
+                if (shader != null)
+                {
+                    targetMaterial = new Material(shader);
+                    targetMaterial.color = Color.green;
+                }
+                else
+                {
+                    Debug.LogError("无法找到可用的着色器来创建目标材质！");
+                }
             }
-            renderer.material = targetMaterial;
+            if (targetMaterial != null)
+            {
+                renderer.material = targetMaterial;
+            }
             
             // 添加刚体（Kinematic）
             Rigidbody rb = target.AddComponent<Rigidbody>();
@@ -385,9 +444,20 @@ public class PinballGameSetup : MonoBehaviour
         {
             gravityShader = Shader.Find("Unlit/Color");
         }
-        Material gravityMaterial = new Material(gravityShader);
-        gravityMaterial.color = new Color(1f, 0.5f, 0f, 0.3f); // 橙色，半透明
-        gravityRenderer.material = gravityMaterial;
+        if (gravityShader == null)
+        {
+            gravityShader = Shader.Find("Sprites/Default");
+        }
+        if (gravityShader != null)
+        {
+            Material gravityMaterial = new Material(gravityShader);
+            gravityMaterial.color = new Color(1f, 0.5f, 0f, 0.3f); // 橙色，半透明
+            gravityRenderer.material = gravityMaterial;
+        }
+        else
+        {
+            Debug.LogError("无法找到可用的着色器来创建重力区域材质！");
+        }
         
         // 添加重力区域脚本
         GravityZone gravityZoneScript = gravityZone.AddComponent<GravityZone>();
@@ -419,8 +489,20 @@ public class PinballGameSetup : MonoBehaviour
         {
             wallShader = Shader.Find("Unlit/Color");
         }
-        Material wallMaterial = new Material(wallShader);
-        wallMaterial.color = Color.white;
+        if (wallShader == null)
+        {
+            wallShader = Shader.Find("Sprites/Default");
+        }
+        Material wallMaterial = null;
+        if (wallShader != null)
+        {
+            wallMaterial = new Material(wallShader);
+            wallMaterial.color = Color.white;
+        }
+        else
+        {
+            Debug.LogError("无法找到可用的着色器来创建墙壁材质！");
+        }
         
         // 添加物理材质（高弹性，确保球能反弹）
         PhysicMaterial wallPhysic = new PhysicMaterial("WallMaterial");
@@ -433,7 +515,10 @@ public class PinballGameSetup : MonoBehaviour
         leftWall.name = "LeftWall";
         leftWall.transform.position = new Vector3(-playAreaSizeX, wallHeight / 2, 0);
         leftWall.transform.localScale = new Vector3(wallThickness, wallHeight, playAreaSizeZ * 2);
-        leftWall.GetComponent<Renderer>().material = wallMaterial;
+        if (wallMaterial != null)
+        {
+            leftWall.GetComponent<Renderer>().material = wallMaterial;
+        }
         leftWall.GetComponent<Collider>().material = wallPhysic;
         leftWall.AddComponent<Rigidbody>().isKinematic = true;
         
@@ -442,7 +527,10 @@ public class PinballGameSetup : MonoBehaviour
         rightWall.name = "RightWall";
         rightWall.transform.position = new Vector3(playAreaSizeX, wallHeight / 2, 0);
         rightWall.transform.localScale = new Vector3(wallThickness, wallHeight, playAreaSizeZ * 2);
-        rightWall.GetComponent<Renderer>().material = wallMaterial;
+        if (wallMaterial != null)
+        {
+            rightWall.GetComponent<Renderer>().material = wallMaterial;
+        }
         rightWall.GetComponent<Collider>().material = wallPhysic;
         rightWall.AddComponent<Rigidbody>().isKinematic = true;
         
@@ -451,7 +539,10 @@ public class PinballGameSetup : MonoBehaviour
         frontWall.name = "FrontWall";
         frontWall.transform.position = new Vector3(0, wallHeight / 2, playAreaSizeZ);
         frontWall.transform.localScale = new Vector3(playAreaSizeX * 2, wallHeight, wallThickness);
-        frontWall.GetComponent<Renderer>().material = wallMaterial;
+        if (wallMaterial != null)
+        {
+            frontWall.GetComponent<Renderer>().material = wallMaterial;
+        }
         frontWall.GetComponent<Collider>().material = wallPhysic;
         frontWall.AddComponent<Rigidbody>().isKinematic = true;
         
@@ -466,7 +557,10 @@ public class PinballGameSetup : MonoBehaviour
         backWallLeft.name = "BackWallLeft";
         backWallLeft.transform.position = new Vector3(-playAreaSizeX + wallSegmentLength / 2, wallHeight / 2, backWallZ);
         backWallLeft.transform.localScale = new Vector3(wallSegmentLength, wallHeight, wallThickness);
-        backWallLeft.GetComponent<Renderer>().material = wallMaterial;
+        if (wallMaterial != null)
+        {
+            backWallLeft.GetComponent<Renderer>().material = wallMaterial;
+        }
         backWallLeft.GetComponent<Collider>().material = wallPhysic;
         backWallLeft.AddComponent<Rigidbody>().isKinematic = true;
         
@@ -475,7 +569,10 @@ public class PinballGameSetup : MonoBehaviour
         backWallRight.name = "BackWallRight";
         backWallRight.transform.position = new Vector3(playAreaSizeX - wallSegmentLength / 2, wallHeight / 2, backWallZ);
         backWallRight.transform.localScale = new Vector3(wallSegmentLength, wallHeight, wallThickness);
-        backWallRight.GetComponent<Renderer>().material = wallMaterial;
+        if (wallMaterial != null)
+        {
+            backWallRight.GetComponent<Renderer>().material = wallMaterial;
+        }
         backWallRight.GetComponent<Collider>().material = wallPhysic;
         backWallRight.AddComponent<Rigidbody>().isKinematic = true;
     }
@@ -506,13 +603,33 @@ public class PinballGameSetup : MonoBehaviour
         
         // 设置为半透明红色
         Renderer renderer = visualIndicator.GetComponent<Renderer>();
-        Material detectorMaterial = new Material(Shader.Find("Legacy Shaders/Transparent/Diffuse"));
-        if (detectorMaterial.shader == null)
+        Material detectorMaterial = null;
+        
+        // 尝试多个着色器，确保打包时可用
+        Shader shader = Shader.Find("Legacy Shaders/Transparent/Diffuse");
+        if (shader == null)
         {
-            detectorMaterial = new Material(Shader.Find("Unlit/Color"));
+            shader = Shader.Find("Unlit/Color");
         }
-        detectorMaterial.color = new Color(1f, 0f, 0f, 0.3f); // 半透明红色
-        renderer.material = detectorMaterial;
+        if (shader == null)
+        {
+            shader = Shader.Find("Legacy Shaders/Diffuse");
+        }
+        if (shader == null)
+        {
+            shader = Shader.Find("Sprites/Default");
+        }
+        
+        if (shader != null)
+        {
+            detectorMaterial = new Material(shader);
+            detectorMaterial.color = new Color(1f, 0f, 0f, 0.3f); // 半透明红色
+            renderer.material = detectorMaterial;
+        }
+        else
+        {
+            Debug.LogError("无法找到可用的着色器来创建检测器材质！");
+        }
         
         // 移除视觉指示器的碰撞器（只保留触发器的碰撞器）
         Collider visualCollider = visualIndicator.GetComponent<Collider>();
