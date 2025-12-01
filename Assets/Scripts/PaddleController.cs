@@ -23,6 +23,8 @@ public class PaddleController : MonoBehaviour
     private float paddleHalfLength; // 板子长度的一半
     private float lastCollisionTime = 0f; // 上次碰撞时间，用于防止重复处理
     private const float COLLISION_COOLDOWN = 0.1f; // 碰撞冷却时间
+
+    private PinballGameManager gameManager;
     
     void Start()
     {
@@ -44,6 +46,9 @@ public class PaddleController : MonoBehaviour
             // 右板子：旋转轴在右边
             pivotPoint = new Vector3(initialPosition.x + paddleHalfLength, initialPosition.y, initialPosition.z);
         }
+
+        // 获取 GameManager 引用，用于在击球时通知“球被发射”
+        gameManager = FindObjectOfType<PinballGameManager>();
         
         // 如果未设置，根据X坐标自动判断
         if (transform.position.x < 0)
@@ -115,8 +120,21 @@ public class PaddleController : MonoBehaviour
                     
                     // 直接设置速度（只在XZ平面），而不是使用AddForce，避免产生Y轴速度
                     Vector3 newVelocity = new Vector3(direction.x * paddleForce, 0, direction.z * paddleForce);
-                    ballRb.velocity = newVelocity;
+                    ballRb.linearVelocity = newVelocity;
                     ballOnPaddle = null; // 清除引用
+
+                    // 通知GameManager：球被挡板打出，开始敌人可被伤害的时间窗口
+                    if (gameManager != null)
+                    {
+                        gameManager.OnBallLaunched();
+                    }
+
+                    // 通知球自身：已经被挡板正式击出
+                    BallController bc = ballRb.GetComponent<BallController>();
+                    if (bc != null)
+                    {
+                        bc.OnLaunchedFromPaddle();
+                    }
                 }
             }
         }
@@ -160,6 +178,14 @@ public class PaddleController : MonoBehaviour
         // 当球碰撞挡板时，使用物理反射
         if (IsBall(collision.gameObject))
         {
+            // 出生阶段的球不做物理反射处理，让它可以安静地躺在挡板上
+            BallController bc = collision.gameObject.GetComponent<BallController>();
+            if (bc != null && !bc.HasBeenLaunched())
+            {
+                ballOnPaddle = collision.gameObject;
+                return;
+            }
+
             lastCollisionTime = Time.time;
             HandleBallCollision(collision);
         }
@@ -176,6 +202,13 @@ public class PaddleController : MonoBehaviour
             Rigidbody ballRb = collision.gameObject.GetComponent<Rigidbody>();
             if (ballRb != null && collision.contacts.Length > 0)
             {
+                // 如果球还没被正式击出（刚出生阶段），不要执行“防卡住”逻辑，允许它静止在挡板上
+                BallController bc = ballRb.GetComponent<BallController>();
+                if (bc != null && !bc.HasBeenLaunched())
+                {
+                    return;
+                }
+
                 // 检查距离上次碰撞处理的时间，避免过于频繁的处理
                 if (Time.time - lastCollisionTime < COLLISION_COOLDOWN)
                 {
@@ -188,7 +221,7 @@ public class PaddleController : MonoBehaviour
                 
                 if (normal.magnitude > 0.1f)
                 {
-                    Vector3 velocity = ballRb.velocity;
+                    Vector3 velocity = ballRb.linearVelocity;
                     Vector3 flatVelocity = new Vector3(velocity.x, 0, velocity.z);
                     float speed = flatVelocity.magnitude;
                     
@@ -217,7 +250,7 @@ public class PaddleController : MonoBehaviour
                         
                         // 给球一个足够的速度离开挡板（确保方向正确）
                         Vector3 escapeVelocity = pushDirection * 8f;
-                        ballRb.velocity = new Vector3(escapeVelocity.x, 0, escapeVelocity.z);
+                        ballRb.linearVelocity = new Vector3(escapeVelocity.x, 0, escapeVelocity.z);
                         
                         lastCollisionTime = Time.time;
                     }
@@ -251,7 +284,7 @@ public class PaddleController : MonoBehaviour
         if (normal.magnitude < 0.1f) return;
         
         // 获取球的入射速度（在XZ平面上）
-        Vector3 incomingVelocity = ballRb.velocity;
+        Vector3 incomingVelocity = ballRb.linearVelocity;
         Vector3 flatIncoming = new Vector3(incomingVelocity.x, 0, incomingVelocity.z);
         if (flatIncoming.magnitude < 0.1f) return;
         
@@ -308,7 +341,7 @@ public class PaddleController : MonoBehaviour
         
         // 应用反射速度（只在XZ平面）
         Vector3 finalVelocity = new Vector3(reflectDirection.x * outgoingSpeed, 0, reflectDirection.z * outgoingSpeed);
-        ballRb.velocity = finalVelocity;
+        ballRb.linearVelocity = finalVelocity;
         
         // 将球推离挡板表面，使用更大的距离确保球离开
         Vector3 pushAway = surfaceNormal * 0.25f; // 增加推离距离

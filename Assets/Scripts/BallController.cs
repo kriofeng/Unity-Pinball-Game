@@ -18,6 +18,13 @@ public class BallController : MonoBehaviour
     private TrailRenderer trailRenderer; // 拖尾组件
     private bool isOnIce = false; // 是否在冰面上
     private CameraShake cameraShake; // 相机震动组件
+    private PinballGameManager gameManager;
+    private ScoreManager scoreManager;
+
+    // 是否已经被挡板正式击出（用于控制出生时不要自动加速度）
+    private bool hasBeenLaunched = false;
+
+    // 记录这颗球上次被挡板击出的时间（由 PinballGameManager 统一管理）
     
     void Start()
     {
@@ -39,6 +46,22 @@ public class BallController : MonoBehaviour
                 cameraShake = mainCamera.gameObject.AddComponent<CameraShake>();
             }
         }
+
+        // 获取 GameManager 和 ScoreManager 引用
+        gameManager = FindObjectOfType<PinballGameManager>();
+        scoreManager = FindObjectOfType<ScoreManager>();
+    }
+
+    // 挡板击出球时由 PaddleController 调用
+    public void OnLaunchedFromPaddle()
+    {
+        hasBeenLaunched = true;
+    }
+
+    // 提供只读访问，用于其他脚本判断当前是否已经被击出
+    public bool HasBeenLaunched()
+    {
+        return hasBeenLaunched;
     }
     
     void SetupTrailRenderer()
@@ -54,7 +77,7 @@ public class BallController : MonoBehaviour
         // 使用默认材质（不设置材质，使用Unity默认的拖尾材质）
         // 这样可以确保拖尾能正常显示
         
-        // 使用Gradient设置拖尾颜色（淡蓝色，类似冰面）
+        // 使用Gradient设置拖尾颜色（默认用于冰面&击杀模式）
         Gradient gradient = new Gradient();
         GradientColorKey[] colorKeys = new GradientColorKey[2];
         colorKeys[0] = new GradientColorKey(new Color(0.5f, 0.8f, 1f), 0f); // 起始颜色（更亮的蓝色）
@@ -79,11 +102,25 @@ public class BallController : MonoBehaviour
         isOnIce = onIce;
         if (trailRenderer != null)
         {
-            // 如果测试模式开启，始终显示；否则根据是否在冰面上决定
-            trailRenderer.enabled = alwaysShowTrail || onIce;
-            if (onIce)
+            UpdateTrailState();
+        }
+    }
+
+    void UpdateTrailState()
+    {
+        if (trailRenderer == null) return;
+
+        bool canDamageEnemies = gameManager != null && gameManager.IsInEnemyHitGraceTime();
+
+        // 测试模式始终显示；否则在冰面上或可击杀敌人时显示拖尾
+        bool shouldEnable = alwaysShowTrail || isOnIce || canDamageEnemies;
+
+        if (trailRenderer.enabled != shouldEnable)
+        {
+            trailRenderer.enabled = shouldEnable;
+            if (shouldEnable)
             {
-                // 清除之前的拖尾，重新开始
+                // 每次重新启用时清一次，让效果更干净
                 trailRenderer.Clear();
             }
         }
@@ -126,12 +163,12 @@ public class BallController : MonoBehaviour
         // 应用总引力到球的速度（在XZ平面上）
         if (totalGravityForce.magnitude > 0.01f)
         {
-            Vector3 currentVelocity = rb.velocity;
+            Vector3 currentVelocity = rb.linearVelocity;
             Vector3 flatVelocity = new Vector3(currentVelocity.x, 0, currentVelocity.z);
             Vector3 newVelocity = flatVelocity + totalGravityForce;
             
             // 确保新速度在XZ平面上
-            rb.velocity = new Vector3(newVelocity.x, 0, newVelocity.z);
+            rb.linearVelocity = new Vector3(newVelocity.x, 0, newVelocity.z);
         }
     }
     
@@ -153,12 +190,12 @@ public class BallController : MonoBehaviour
             transform.position = position;
             
             // 保存当前速度，用于碰撞检测（在限制Y轴之前）
-            lastVelocity = rb.velocity;
+            lastVelocity = rb.linearVelocity;
             
             // 限制球只在XZ平面上移动（Y轴速度为0）- 强制限制，确保不会飞出
-            Vector3 velocity = rb.velocity;
+            Vector3 velocity = rb.linearVelocity;
             velocity.y = 0f; // 强制Y轴速度为0
-            rb.velocity = velocity;
+            rb.linearVelocity = velocity;
             
             // 同时限制角速度的Y轴分量（防止球旋转产生Y轴速度）
             Vector3 angularVelocity = rb.angularVelocity;
@@ -170,9 +207,9 @@ public class BallController : MonoBehaviour
             ApplyGravityZones();
             
             // 重新获取当前速度（应用重力后，只在XZ平面）
-            Vector3 currentVelocity = rb.velocity;
+            Vector3 currentVelocity = rb.linearVelocity;
             currentVelocity.y = 0f; // 确保Y轴速度为0
-            rb.velocity = currentVelocity;
+            rb.linearVelocity = currentVelocity;
             float currentSpeed = new Vector3(currentVelocity.x, 0, currentVelocity.z).magnitude;
             
             // 如果速度低于最小值，增加速度
@@ -180,26 +217,30 @@ public class BallController : MonoBehaviour
             {
                 // 保持方向，但增加速度到最小值（只在XZ平面）
                 Vector3 direction = new Vector3(currentVelocity.x, 0, currentVelocity.z).normalized;
-                rb.velocity = new Vector3(direction.x * minSpeed, 0, direction.z * minSpeed);
+                rb.linearVelocity = new Vector3(direction.x * minSpeed, 0, direction.z * minSpeed);
             }
             
             // 如果速度超过最大值，限制速度
             if (currentSpeed > maxSpeed)
             {
                 Vector3 direction = new Vector3(currentVelocity.x, 0, currentVelocity.z).normalized;
-                rb.velocity = new Vector3(direction.x * maxSpeed, 0, direction.z * maxSpeed);
+                rb.linearVelocity = new Vector3(direction.x * maxSpeed, 0, direction.z * maxSpeed);
             }
             
             // 如果球几乎停止（可能是卡住了），给它一个小的随机速度
-            if (currentSpeed < 0.1f)
+            // 只在球已经被挡板击出之后才这样做，避免出生时自动动起来
+            if (hasBeenLaunched && currentSpeed < 0.1f)
             {
                 Vector3 randomDirection = new Vector3(
                     Random.Range(-1f, 1f),
                     0,
                     Random.Range(0.5f, 1f)
                 ).normalized;
-                rb.velocity = new Vector3(randomDirection.x * minSpeed, 0, randomDirection.z * minSpeed);
+                rb.linearVelocity = new Vector3(randomDirection.x * minSpeed, 0, randomDirection.z * minSpeed);
             }
+
+            // 更新拖尾显示状态（包括“可击杀敌人”时间窗口）
+            UpdateTrailState();
         }
         else
         {
@@ -210,12 +251,12 @@ public class BallController : MonoBehaviour
             transform.position = position;
             
             // 保存速度用于碰撞检测
-            lastVelocity = rb.velocity;
+            lastVelocity = rb.linearVelocity;
             
             // 限制Y轴速度，但允许X和Z轴继续移动
-            Vector3 velocity = rb.velocity;
+            Vector3 velocity = rb.linearVelocity;
             velocity.y = 0f;
-            rb.velocity = velocity;
+            rb.linearVelocity = velocity;
         }
     }
     
@@ -229,10 +270,13 @@ public class BallController : MonoBehaviour
             float impactSpeed = new Vector3(lastVelocity.x, 0, lastVelocity.z).magnitude;
             if (impactSpeed < 0.1f)
             {
-                impactSpeed = new Vector3(rb.velocity.x, 0, rb.velocity.z).magnitude;
+                impactSpeed = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z).magnitude;
             }
             cameraShake.ShakeByImpact(impactSpeed);
         }
+
+        // 与敌人的特殊交互
+        HandleEnemyCollision(collision);
         
         // 只在垂直入射时才进行偏斜处理，其他情况让Unity物理引擎自然处理
         if (collision.contacts.Length > 0)
@@ -252,7 +296,7 @@ public class BallController : MonoBehaviour
             if (incomingDirection.magnitude < 0.1f)
             {
                 // 如果lastVelocity无效，使用当前速度的反方向
-                incomingDirection = -rb.velocity.normalized;
+                incomingDirection = -rb.linearVelocity.normalized;
             }
             
             // 确保入射方向在XZ平面上
@@ -376,24 +420,24 @@ public class BallController : MonoBehaviour
                     currentSpeed = maxSpeed;
                 }
                 
-                rb.velocity = new Vector3(deflectedDirection.x * currentSpeed, 0, deflectedDirection.z * currentSpeed);
+                rb.linearVelocity = new Vector3(deflectedDirection.x * currentSpeed, 0, deflectedDirection.z * currentSpeed);
             }
             else
             {
                 // 如果不是垂直入射，让Unity物理引擎自然处理，只重置计数
                 consecutive90DegreeCollisions = 0;
                 // 确保Y轴速度为0（即使物理引擎处理，也要限制在XZ平面）
-                Vector3 currentVel = rb.velocity;
+                Vector3 currentVel = rb.linearVelocity;
                 currentVel.y = 0f;
-                rb.velocity = currentVel;
+                rb.linearVelocity = currentVel;
             }
         }
         else
         {
             // 即使没有接触点，也要确保Y轴速度为0
-            Vector3 currentVel = rb.velocity;
+            Vector3 currentVel = rb.linearVelocity;
             currentVel.y = 0f;
-            rb.velocity = currentVel;
+            rb.linearVelocity = currentVel;
         }
     }
     
@@ -407,6 +451,35 @@ public class BallController : MonoBehaviour
         catch
         {
             return obj.name.StartsWith("Target");
+        }
+    }
+
+    void HandleEnemyCollision(Collision collision)
+    {
+        GameObject other = collision.gameObject;
+
+        // 使用标签或组件来识别敌人，这里通过组件 EnemyBase 更安全
+        EnemyBase enemy = other.GetComponent<EnemyBase>();
+        if (enemy == null)
+        {
+            // 有可能碰到的是带有碰撞器的子物体，往父级找
+            enemy = other.GetComponentInParent<EnemyBase>();
+        }
+
+        if (enemy == null)
+        {
+            return;
+        }
+
+        if (gameManager != null && gameManager.IsInEnemyHitGraceTime())
+        {
+            // 安全时间内：球伤害敌人
+            enemy.OnHitByBall(scoreManager);
+        }
+        else
+        {
+            // 超出时间：球被敌人吃掉
+            enemy.OnEatBall(gameManager, gameObject);
         }
     }
 }

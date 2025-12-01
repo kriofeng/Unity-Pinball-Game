@@ -94,7 +94,7 @@ public class UIManager : MonoBehaviour
         }
         gameOverText.fontSize = 48;
         gameOverText.color = Color.red;
-        gameOverText.text = "游戏结束！";
+        gameOverText.text = "Game Over!";
         gameOverText.alignment = TextAnchor.MiddleCenter;
         
         RectTransform gameOverRect = gameOverObj.GetComponent<RectTransform>();
@@ -121,7 +121,7 @@ public class UIManager : MonoBehaviour
         {
             buttonText.font = defaultFont;
         }
-        buttonText.text = "重新开始 (R)";
+        buttonText.text = "Restart (R)";
         buttonText.fontSize = 32;
         buttonText.color = Color.white;
         buttonText.alignment = TextAnchor.MiddleCenter;
@@ -160,7 +160,7 @@ public class UIManager : MonoBehaviour
     {
         if (gameOverText != null)
         {
-            gameOverText.text = $"游戏结束！\n最终得分: {finalScore}";
+            gameOverText.text = $"Game Over!\nFinal Score: {finalScore}";
             gameOverText.gameObject.SetActive(true);
         }
         

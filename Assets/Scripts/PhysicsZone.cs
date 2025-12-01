@@ -7,12 +7,12 @@ public class PhysicsZone : MonoBehaviour
     public float bounciness = 0.3f;
     public Color zoneColor = Color.gray;
     
-    private PhysicMaterial zoneMaterial;
+    private PhysicsMaterial zoneMaterial;
     
     void Start()
     {
         // 创建物理材质
-        zoneMaterial = new PhysicMaterial("ZoneMaterial");
+        zoneMaterial = new PhysicsMaterial("ZoneMaterial");
         zoneMaterial.dynamicFriction = friction;
         zoneMaterial.staticFriction = friction;
         zoneMaterial.bounciness = bounciness;

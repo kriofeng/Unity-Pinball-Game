@@ -12,6 +12,10 @@ public class PinballGameSetup : MonoBehaviour
     private ScoreManager scoreManager;
     private UIManager uiManager;
     private PinballGameManager gameManager;
+    private float paddleZPosition; // 记录挡板的Z位置，方便在挡板上生成球
+
+    [Header("敌人设置")]
+    public float enemyRespawnDelay = 3f; // 敌人被击杀后复活的延迟时间
     
     void Start()
     {
@@ -44,6 +48,9 @@ public class PinballGameSetup : MonoBehaviour
         
         // 创建物理区域（正常区域和冰面区域）
         CreatePhysicsZones();
+
+        // 创建敌人
+        CreateEnemies();
         
         // 创建球
         CreateBall();
@@ -136,7 +143,7 @@ public class PinballGameSetup : MonoBehaviour
         }
         
         // 添加物理材质（低摩擦，让球更容易移动）
-        PhysicMaterial normalPhysic = new PhysicMaterial("NormalMaterial");
+        PhysicsMaterial normalPhysic = new PhysicsMaterial("NormalMaterial");
         normalPhysic.dynamicFriction = 0.2f; // 降低摩擦
         normalPhysic.staticFriction = 0.2f; // 降低摩擦
         normalPhysic.bounciness = 0.5f; // 增加弹性
@@ -154,13 +161,16 @@ public class PinballGameSetup : MonoBehaviour
     
     public GameObject CreateNewBall()
     {
-        // 创建球（从上方发射，类似真实弹球机）
+        // 创建球（在挡板附近出生，初始无速度）
         GameObject ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         ball.name = "Ball";
         SetTagSafely(ball, "Ball");
-        
-        // 球从上方发射位置开始（弹球机顶部）
-        ball.transform.position = new Vector3(0f, 0.5f, 3f); // 从上方（前墙附近）开始
+
+        // 在右挡板正上方、略微往场内偏一点的位置出生
+        // 右挡板中心：x = 1.3, z = paddleZPosition
+        float spawnX = 1.3f;
+        float spawnZ = paddleZPosition + 0.15f;
+        ball.transform.position = new Vector3(spawnX, 0.5f, spawnZ);
         ball.transform.localScale = new Vector3(0.3f, 0.3f, 0.3f);
         
         // 设置材质（使用兼容的内置着色器）
@@ -195,22 +205,22 @@ public class PinballGameSetup : MonoBehaviour
         Rigidbody rb = ball.AddComponent<Rigidbody>();
         rb.mass = 0.5f; // 减小质量，让球更容易被推动
         rb.useGravity = false; // 禁用重力，球只在平面上移动
-        rb.drag = 0.1f; // 降低阻力，让球更容易移动
-        rb.angularDrag = 0.1f; // 降低角阻力
+        rb.linearDamping = 0.1f; // 降低阻力，让球更容易移动
+        rb.angularDamping = 0.1f; // 降低角阻力
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; // 连续动态碰撞检测，确保与Kinematic刚体碰撞正确
         rb.interpolation = RigidbodyInterpolation.Interpolate; // 插值，使移动更平滑
         rb.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ; // 冻结Y轴位置和X、Z轴旋转
         
         // 添加物理材质（高弹性）
-        PhysicMaterial ballPhysic = new PhysicMaterial("BallMaterial");
+        PhysicsMaterial ballPhysic = new PhysicsMaterial("BallMaterial");
         ballPhysic.dynamicFriction = 0.05f; // 降低摩擦
         ballPhysic.staticFriction = 0.05f; // 降低摩擦
         ballPhysic.bounciness = 0.9f; // 增加弹性
         ball.GetComponent<Collider>().material = ballPhysic;
         
         // 球初始向下移动（朝向挡板和开口）
-        Vector3 initialVelocity = new Vector3(Random.Range(-1f, 1f), 0, -3f).normalized * 5f;
-        rb.velocity = initialVelocity;
+        // 现在不再给初速度，等待玩家用挡板击球
+        rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
         
         // 添加球控制器，保持最小速度
@@ -223,6 +233,7 @@ public class PinballGameSetup : MonoBehaviour
     {
         float playAreaSizeZ = 4f;
         float paddleZ = -playAreaSizeZ + 0.5f; // 挡板位置靠近下边墙（后墙），在开口上方
+        paddleZPosition = paddleZ;
         
         // 创建左挡板（水平放置，靠近下边墙）
         GameObject leftPaddle = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -267,7 +278,7 @@ public class PinballGameSetup : MonoBehaviour
         leftCollider.isTrigger = false; // 确保不是触发器
         
         // 添加物理材质，确保球能碰撞
-        PhysicMaterial paddlePhysic = new PhysicMaterial("PaddleMaterial");
+        PhysicsMaterial paddlePhysic = new PhysicsMaterial("PaddleMaterial");
         paddlePhysic.dynamicFriction = 0.1f;
         paddlePhysic.staticFriction = 0.1f;
         paddlePhysic.bounciness = 0.8f; // 高弹性
@@ -400,7 +411,7 @@ public class PinballGameSetup : MonoBehaviour
                 collider.isTrigger = false;
                 
                 // 添加物理材质（高弹性，让球能够反弹）
-                PhysicMaterial targetPhysic = new PhysicMaterial("TargetMaterial");
+                PhysicsMaterial targetPhysic = new PhysicsMaterial("TargetMaterial");
                 targetPhysic.dynamicFriction = 0.1f;
                 targetPhysic.staticFriction = 0.1f;
                 targetPhysic.bounciness = 0.9f; // 高弹性
@@ -409,6 +420,20 @@ public class PinballGameSetup : MonoBehaviour
             
             // 添加粒子效果触发器
             target.AddComponent<ParticleTrigger>();
+
+            // 选取两个奖励柱子：这里选择索引 9 和 11（第三排左、右）
+            if (i == 9 || i == 11)
+            {
+                // 改变颜色以便区分成奖励柱子（青色）
+                if (renderer != null)
+                {
+                    renderer.material.color = Color.cyan;
+                }
+
+                // 添加奖励柱子逻辑
+                RewardPostZone reward = target.AddComponent<RewardPostZone>();
+                reward.bonusKillTime = 0.7f;
+            }
         }
     }
     
@@ -479,6 +504,147 @@ public class PinballGameSetup : MonoBehaviour
         gravityRb.isKinematic = true;
         gravityRb.useGravity = false;
     }
+
+    // 敌人死亡后由 EnemyBase 调用，安排一定时间后复活
+    public void ScheduleEnemyRespawn(EnemyBase deadEnemy)
+    {
+        if (deadEnemy == null) return;
+        StartCoroutine(RespawnEnemyCoroutine(deadEnemy));
+    }
+
+    private System.Collections.IEnumerator RespawnEnemyCoroutine(EnemyBase deadEnemy)
+    {
+        yield return new WaitForSeconds(enemyRespawnDelay);
+
+        // 如果游戏已经结束，就不要复活敌人
+        if (gameManager == null)
+        {
+            gameManager = FindObjectOfType<PinballGameManager>();
+        }
+        if (gameManager != null && gameManager.IsGameOver())
+        {
+            yield break;
+        }
+
+        // 按类型复活对应敌人（当前只有两种）
+        if (deadEnemy is PatrolEnemy)
+        {
+            CreatePatrolEnemy();
+        }
+        else if (deadEnemy is ChaseEnemy)
+        {
+            CreateChaseEnemy();
+        }
+    }
+
+    public void CreateEnemies()
+    {
+        // 先清理场景中已有的敌人（用于重新开始游戏刷新敌人）
+        EnemyBase[] existingEnemies = FindObjectsOfType<EnemyBase>();
+        foreach (var e in existingEnemies)
+        {
+            if (e != null)
+            {
+                Destroy(e.gameObject);
+            }
+        }
+
+        // 左右各生成一只敌人
+        CreatePatrolEnemy();
+        CreateChaseEnemy();
+    }
+
+    // 创建左侧巡逻敌人
+    public PatrolEnemy CreatePatrolEnemy()
+    {
+        GameObject patrolObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        patrolObj.name = "PatrolEnemy";
+        // 稍微往下移一点（靠近挡板方向，Z 更小）
+        patrolObj.transform.position = new Vector3(-3f, 0.5f, -1.5f);
+        patrolObj.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
+
+        Renderer patrolRenderer = patrolObj.GetComponent<Renderer>();
+        if (patrolRenderer != null)
+        {
+            Shader shader = Shader.Find("Legacy Shaders/Diffuse");
+            if (shader == null)
+            {
+                shader = Shader.Find("Unlit/Color");
+            }
+            if (shader == null)
+            {
+                shader = Shader.Find("Sprites/Default");
+            }
+            if (shader != null)
+            {
+                Material m = new Material(shader);
+                m.color = Color.magenta;
+                patrolRenderer.material = m;
+            }
+        }
+
+        // 确保有碰撞和刚体
+        Collider patrolCollider = patrolObj.GetComponent<Collider>();
+        if (patrolCollider == null)
+        {
+            patrolCollider = patrolObj.AddComponent<SphereCollider>();
+        }
+        patrolCollider.isTrigger = false;
+        Rigidbody patrolRb = patrolObj.AddComponent<Rigidbody>();
+        patrolRb.isKinematic = true;
+        patrolRb.useGravity = false;
+
+        PatrolEnemy patrolEnemy = patrolObj.AddComponent<PatrolEnemy>();
+        patrolEnemy.center = new Vector3(-3f, 0.5f, -1.5f);
+        patrolEnemy.radius = 1.5f;
+        return patrolEnemy;
+    }
+
+    // 创建右侧追踪敌人
+    public ChaseEnemy CreateChaseEnemy()
+    {
+        GameObject chaseObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        chaseObj.name = "ChaseEnemy";
+        chaseObj.transform.position = new Vector3(3f, 0.5f, 0f);
+        chaseObj.transform.localScale = new Vector3(0.6f, 0.6f, 0.6f);
+
+        Renderer chaseRenderer = chaseObj.GetComponent<Renderer>();
+        if (chaseRenderer != null)
+        {
+            Shader shader = Shader.Find("Legacy Shaders/Diffuse");
+            if (shader == null)
+            {
+                shader = Shader.Find("Unlit/Color");
+            }
+            if (shader == null)
+            {
+                shader = Shader.Find("Sprites/Default");
+            }
+            if (shader != null)
+            {
+                Material m = new Material(shader);
+                m.color = Color.yellow;
+                chaseRenderer.material = m;
+            }
+        }
+
+        Collider chaseCollider = chaseObj.GetComponent<Collider>();
+        if (chaseCollider == null)
+        {
+            chaseCollider = chaseObj.AddComponent<CapsuleCollider>();
+        }
+        chaseCollider.isTrigger = false;
+        Rigidbody chaseRb = chaseObj.AddComponent<Rigidbody>();
+        chaseRb.isKinematic = true;
+        chaseRb.useGravity = false;
+
+        ChaseEnemy chaseEnemy = chaseObj.AddComponent<ChaseEnemy>();
+        // 进一步微调追踪参数（可以根据手感再改）
+        chaseEnemy.detectRadius = 2.5f;
+        chaseEnemy.chaseSpeed = 1.8f;
+        chaseEnemy.chaseDuration = 2.0f;
+        return chaseEnemy;
+    }
     
     void CreateWalls()
     {
@@ -511,7 +677,7 @@ public class PinballGameSetup : MonoBehaviour
         }
         
         // 添加物理材质（高弹性，确保球能反弹）
-        PhysicMaterial wallPhysic = new PhysicMaterial("WallMaterial");
+        PhysicsMaterial wallPhysic = new PhysicsMaterial("WallMaterial");
         wallPhysic.dynamicFriction = 0.1f;
         wallPhysic.staticFriction = 0.1f;
         wallPhysic.bounciness = 0.9f; // 高弹性
